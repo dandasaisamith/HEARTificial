@@ -1,6 +1,6 @@
 # TRACE-FX: Complete System Walkthrough & Architectural Evolution
 
-This document serves as a complete, step-by-step walkthrough of the TRACE-FX project, including the fundamental engine build-out and the subsequent major Streamlit UI/UX architectural overhaul (PS04 HacKnex proof mode). It details the journey from an empty codebase to a fully functional, deterministic financial-fraud intelligence system, explaining every major design decision.
+This document serves as a complete, step-by-step walkthrough of the TRACE-FX project, including the fundamental engine build-out and the subsequent major Streamlit UI/UX architectural overhauls (PS04 HacKnex proof mode + Final Forensic Redesign). It details the journey from an empty codebase to a fully functional, highly optimized, deterministic financial-fraud intelligence system, explaining every major design decision.
 
 ## 1. Core Architecture & Philosophy
 
@@ -89,16 +89,21 @@ We built 5 explicit fraud detectors (`motifs.py`). Instead of black-box ML, thes
 - **The Ledger** (`ledger.py`): Generates a balance sheet for every account. Adds positive points for Motifs (e.g., +30 for M2) and subtracts points for Exculpatory Evidence (e.g., -15 for old accounts).
 - **The Gate** (`gate.py`): The deterministic judge. For an account to be marked `FRAUD`, it requires `net_points >= 60` AND at least 2 independent structural evidence types.
 
-### Phase 5: The UI Architectural Rescue & Redesign
-The original Streamlit application was technically populated but failed as a product—navigation was poor, investigation flows were unclear, and it felt like generic AI dashboarding. We executed a ground-up product rescue to turn it into a true "Financial Investigation Console".
+### Phase 5: The Forensic UI Rescue & Vectorization
+The original Streamlit application was technically populated but failed as a product. We executed a ground-up product rescue to turn it into a true "Financial Investigation Console" and optimized the backend for production workloads.
 
-**Key Changes:**
-- **`st.navigation` Multi-page Routing**: Converted the single `app.py` script into a scalable multi-page app with `01_mission_control.py`, `02_scorecard.py`, `03_case_queue.py`, `04_fraud_rings.py`, `05_replay.py`, and `06_how_it_works.py`.
-- **`engine_api.py` Event Wrapper**: Separated the engine from the UI. We wrapped `pipeline.run` utilizing Python's `unittest.mock.patch` on `pipeline._safe` to emit real-time event updates to the UI, proving to judges that the system performs live schema parsing, feature engineering, graph building, and gate logic *without modifying the core pipeline code*.
-- **Live Scorecard & Strict Evaluation**: Integrated `tracefx.evaluate` directly into the UI to present un-gamed metrics (Precision, Recall, PR-AUC).
-- **Plotly Fraud Rings**: Replaced static generic views with interactive `NetworkX` -> `Plotly` graphs showing the exact topologies of M1-M5 rings.
-- **Causal Temporal Replay**: Rebuilt the replay tab leveraging Streamlit 1.37+ `st.fragment(run_every=...)` to advance the timeline state, explicitly showing when evidence was acquired and when the Precision Gate finally tipped to `FRAUD`.
-- **"Why Not Fraud?" Counterfactuals**: Designed a UI block that proves the engine avoids false positives on legitimate high-value transactions by showing missing structural evidence or applied exculpatory points.
+**Backend Vectorization:**
+- **O(1) Checksets:** Eliminated repeated `O(n)` boolean mask scans across the dataset by pre-computing static sets of `(payer, payee)` pairs, slashing `graph.py` and `M1` motif execution times.
+- **Vectorized Lookups:** Replaced `pandas.iterrows()` loops with memory-contiguous `zip()` aggregations on DataFrame columns.
+
+**UI Restructuring (`st.navigation`):**
+- **01 Mission Control**: Live `S1-S9` engine orchestration with pipeline phase observability.
+- **02 Detection Quality**: Robust metrics (PR-AUC, Recall) adapting dynamically to the presence/absence of ground truth in hybrid/real datasets.
+- **03 Investigate**: Forensic drill-down. Shows exact Isolation Forest behavioral logic, Ledger balance sheets, active Precision Gate math, and the PS04 "Why Not Fraud?" counterfactual breakdown.
+- **04 Fraud Networks**: Semantic `Plotly` ring topology rendering.
+- **05 Temporal Replay**: Causal time-stepper locked explicitly to `satisfied_at` and `alert_ts` thresholds.
+- **06 How TRACE-FX Works**: Interactive architecture explorer and live PS04 Live Proof matrix.
+- **07 Data & System**: Live registry scanner tracking `data/Traindata/` (raw external mappings) and local capabilities.
 
 ## 3. Full Codebase Directory Tree
 
@@ -118,8 +123,8 @@ TRACE-FX/
 │   ├── schema.py                         # Data ingestion & UTC normalization
 │   ├── features.py                       # Rolling behavioral windows
 │   ├── baseline.py                       # IsolationForest anomaly scoring
-│   ├── graph.py                          # MultiGraph & Hub Caps
-│   ├── motifs.py                         # M1-M5 structural detectors
+│   ├── graph.py                          # MultiGraph & Hub Caps (Vectorized)
+│   ├── motifs.py                         # M1-M5 structural detectors (Vectorized)
 │   ├── ledger.py                         # Evidence point allocation
 │   ├── gate.py                           # FRAUD/REVIEW logic
 │   ├── rollup.py                         # Connected components & groups
@@ -134,11 +139,12 @@ TRACE-FX/
 │   │   └── datasets.py                   # Automatic dataset discovery scanner
 │   └── pages/                            # Navigable UI views
 │       ├── 01_mission_control.py         # Live pipeline execution 
-│       ├── 02_scorecard.py               # Evaluation metrics
-│       ├── 03_case_queue.py              # Ledger & Precision Gate breakdown
-│       ├── 04_fraud_rings.py             # Plotly NetworkX topologies
-│       ├── 05_replay.py                  # Causal st.fragment timeline
-│       └── 06_how_it_works.py            # Live PS04 proof matrix
+│       ├── 02_detection_quality.py       # Strict / Any-Ring evaluation metrics
+│       ├── 03_investigate.py             # Ledger, Gate, & False-Positive forensic view
+│       ├── 04_fraud_networks.py          # Plotly NetworkX topologies
+│       ├── 05_temporal_replay.py         # Causal st.fragment timeline
+│       ├── 06_how_tracefx_works.py       # Live PS04 proof matrix
+│       └── 07_data_and_system.py         # Dataset scanner & real-world mapping status
 ├── tests/                                # 100% deterministic test suite
 │   └── test_*.py
 ├── requirements.txt                      # Pinned dependencies (streamlit, plotly, etc.)
@@ -153,13 +159,8 @@ python -m pytest -q tests
 ```
 *Ensures that core engine logic (types, gates, motifs) has not regressed and scores remain perfectly deterministic.*
 
-**2. Prewarm the Engine Cache (Optional):**
-```powershell
-python scripts/prewarm.py
-```
-
-**3. Launch the Investigation Console:**
+**2. Launch the Investigation Console:**
 ```powershell
 python -m streamlit run app/app.py
 ```
-*Navigate to `Mission Control`, select `demo_small.csv`, and execute the pipeline to observe the real-time event feed. Then proceed through the `Scorecard`, `Case Queue`, and `Fraud Rings` pages to verify the PS04 compliance matrix.*
+*Navigate to `Mission Control`, select `demo_small.csv`, and execute the pipeline to observe the real-time event feed. Then proceed through the `Investigate` and `Fraud Networks` pages to verify the PS04 compliance matrix.*
