@@ -88,7 +88,7 @@ if target_acc:
         st.markdown("### EVIDENCE LEDGER")
         for line in dec.ledger:
             color = "var(--fraud)" if line.points >= 20 else "var(--ring)" if line.points > 0 else "var(--legit)"
-            with st.expander(f"**{line.points:+d}** | {line.source}"):
+            with st.expander(f"**{int(line.points):+d}** | {line.source}"):
                 st.markdown(f"**Explanation:** {line.text}")
                 if line.tx_ids:
                     st.markdown(f"**Transactions:** `{', '.join(line.tx_ids[:3])}`")
