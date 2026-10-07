@@ -141,6 +141,39 @@ def _evaluate_seed(csv_path: str, truth_path: str, cfg: dict) -> dict:
         precision_fraud = recall_fraud = p_at_10 = p_at_50 = pr_auc = float("nan")
         fp_fraud = 0
 
+    # ----- Additive metrics: anyring -----
+    anyring_accounts = set()
+    for ring in rings:
+        anyring_accounts.update(ring.get("accounts", []))
+    
+    fraud_payers = set()
+    if fraud_tx_ids and not df.empty:
+        fraud_payers = set(df[df["tx_id"].isin(fraud_tx_ids)]["payer_id"])
+    
+    # Hard negative accounts are never positives
+    hard_negatives = truth.get("hard_negatives", [])
+    hard_negative_accs = set()
+    for hn in hard_negatives:
+        hard_negative_accs.update(hn.get("accounts", []))
+        
+    anyring_positives = (anyring_accounts | fraud_payers) - hard_negative_accs
+
+    if not accs.empty and anyring_positives:
+        pred_fraud = set(accs[accs["label"] == "FRAUD"].index)
+        pred_review = set(accs[accs["label"] == "REVIEW"].index)
+        pred_fraud_or_review = pred_fraud | pred_review
+
+        tp_fraud_any = len(pred_fraud & anyring_positives)
+        precision_fraud_anyring = tp_fraud_any / max(len(pred_fraud), 1)
+        recall_fraud_anyring = tp_fraud_any / max(len(anyring_positives), 1)
+
+        tp_for_any = len(pred_fraud_or_review & anyring_positives)
+        precision_fraud_or_review_anyring = tp_for_any / max(len(pred_fraud_or_review), 1)
+        recall_fraud_or_review_anyring = tp_for_any / max(len(anyring_positives), 1)
+    else:
+        precision_fraud_anyring = recall_fraud_anyring = float("nan")
+        precision_fraud_or_review_anyring = recall_fraud_or_review_anyring = float("nan")
+
     # ----- Latency -----
     elapsed = result.metrics.get("elapsed_s", float("nan"))
     n_txs = result.metrics.get("total_transactions", len(df))
@@ -162,6 +195,10 @@ def _evaluate_seed(csv_path: str, truth_path: str, cfg: dict) -> dict:
         "fp_legit_hv_fraud_or_review": hv_fraud_or_review,
         "precision_fraud": round(precision_fraud, 4) if not np.isnan(precision_fraud) else "nan",
         "recall_fraud": round(recall_fraud, 4) if not np.isnan(recall_fraud) else "nan",
+        "precision_fraud_anyring": round(precision_fraud_anyring, 4) if not np.isnan(precision_fraud_anyring) else "nan",
+        "recall_fraud_anyring": round(recall_fraud_anyring, 4) if not np.isnan(recall_fraud_anyring) else "nan",
+        "precision_fraud_or_review_anyring": round(precision_fraud_or_review_anyring, 4) if not np.isnan(precision_fraud_or_review_anyring) else "nan",
+        "recall_fraud_or_review_anyring": round(recall_fraud_or_review_anyring, 4) if not np.isnan(recall_fraud_or_review_anyring) else "nan",
         "precision_at_10": round(p_at_10, 4) if not np.isnan(p_at_10) else "nan",
         "precision_at_50": round(p_at_50, 4) if not np.isnan(p_at_50) else "nan",
         "pr_auc": round(pr_auc, 4) if not np.isnan(pr_auc) else "nan",
