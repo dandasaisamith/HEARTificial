@@ -55,15 +55,15 @@ TRACE-FX separates unusual behaviour from an accusation. An IsolationForest supp
 <summary>Setup and launch</summary>
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\activate
-python -m pip install --upgrade pip
-pip install -e .
-pip install -r requirements.txt
-python -m tracefx data
+python -m pytest -q
 python -m tracefx eval --data-dir data --out reports
-python -m streamlit run app/app.py
-```
+python -m tracefx prepare --dataset fraud_ecommerce --raw data\Traindata --out data\external
+python -m tracefx hybrid --raw data\Traindata --out data\external --rows 30000 --seed 20261007
+python -m tracefx score data\external\fraud_ecommerce_canonical.csv --config configs\fraud_ecommerce.yaml --out reports\ext_fraud_ecommerce
+python -m tracefx score data\external\hybrid_ecom_canonical.csv --config configs\hybrid_ecom.yaml --out reports\ext_hybrid_ecom
+python -m tracefx eval --external data\external --out reports
+python -m streamlit run app\app.py
+
 
 Open <http://localhost:8501>.
 
@@ -91,14 +91,6 @@ Open <http://localhost:8501>.
 
 </details>
 
-### Docker-free
-
-<details>
-<summary>What this quickstart uses</summary>
-
-The documented path uses a Python virtual environment and local package installation. Docker is not required by the supplied Windows walkthrough. The generator writes `seedA.csv`, `seedB.csv`, `seedC.csv`, and `demo_small.csv` under `data/`; evaluation writes `reports/eval_results.csv`.
-
-</details>
 
 ### Troubleshooting
 
