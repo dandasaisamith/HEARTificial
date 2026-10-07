@@ -14,7 +14,11 @@ def update_marker(content: str, marker_name: str, new_text: str) -> str:
         
     pattern = re.compile(f"{start_tag}.*?{end_tag}", re.DOTALL)
     replacement = f"{start_tag}\n{new_text}\n{end_tag}"
-    return pattern.sub(replacement, content)
+    # Use string replacement instead of re.sub to avoid escape parsing in replacement
+    match = pattern.search(content)
+    if match:
+        content = content[:match.start()] + replacement + content[match.end():]
+    return content
 
 def get_baseline_content():
     # Read finding
@@ -30,9 +34,13 @@ def get_baseline_content():
     eval_md = ""
     if eval_csv.exists():
         df = pd.read_csv(eval_csv)
-        # timing columns labelled "machine-dependent, excluded from regression compare"
         df.rename(columns={"elapsed_s": "elapsed_s (machine-dependent)", "latency_per_tx_ms": "latency (machine-dependent)"}, inplace=True)
-        eval_md = df.to_markdown(index=False)
+        # Create markdown manually without tabulate
+        cols = df.columns.tolist()
+        eval_md = "| " + " | ".join(cols) + " |\n"
+        eval_md += "| " + " | ".join(["---"] * len(cols)) + " |\n"
+        for _, row in df.iterrows():
+            eval_md += "| " + " | ".join(str(row[c]) for c in cols) + " |\n"
         
     # Read determinism from AUDIT_BASELINE.md
     audit_base = Path("docs/AUDIT_BASELINE.md")

@@ -209,7 +209,61 @@ Contains a complete `pytest` suite ensuring 100% deterministic reliability.
 
 
 <!-- BASELINE:START -->
+## System Overview
+TRACE-FX is a real-time financial fraud intelligence engine designed to produce explainable, deterministic decisions. It operates offline on CPU, prioritizing clear causal evidence over black-box predictions. The architecture transforms canonical transactions into structured motifs and aggregates them into a point-based ledger.
+
+**Pipeline Flow:**
+`schema` -> `features` -> `IsolationForest` -> `graph` -> `M1-M5` -> `ledger` -> `gate` -> `rollup` -> `explain/actions` -> `UI`.
+
+## How to Run
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m pytest -q
+python -m tracefx eval --data-dir data --out reports
+python -m tracefx score data\demo_small.csv
+python -m streamlit run app\app.py
+```
+
+## Baseline Results
+**Commit Tag:** `pre-external`
+**Tests:** 50 passed
+
+**Evaluation Table:**
+| seed_file | seed | n_transactions | n_accounts | n_fraud_accounts | n_review_accounts | n_groups | ring_full | ring_partial | ring_missed | ring_recall_full | fp_legit_hv_fraud_only | fp_legit_hv_fraud_or_review | precision_fraud | recall_fraud | precision_at_10 | precision_at_50 | pr_auc | elapsed_s (machine-dependent) | latency (machine-dependent) | degraded_stages |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| seedA | 42 | 45332 | 2005 | 3 | 203 | 78 | 5 | 0 | 0 | 5/5 | 0 | 0 | 0.0 | 0.0 | 0.4 | 0.34 | 0.3698 | 29.665 | 0.654 | none |
+| seedB | 7 | 45023 | 2005 | 10 | 240 | 51 | 5 | 0 | 0 | 5/5 | 0 | 1 | 0.6 | 0.2727 | 0.3 | 0.38 | 0.4239 | 29.915 | 0.664 | none |
+| seedC | 2026 | 45220 | 2005 | 11 | 227 | 57 | 6 | 0 | 0 | 6/6 | 0 | 1 | 0.3636 | 0.1905 | 0.0 | 0.38 | 0.3357 | 29.22 | 0.646 | none |
+| demo_small | 42 | 5186 | 602 | 5 | 159 | 20 | 2 | 0 | 0 | 2/2 | 0 | 0 | 0.6 | 0.3 | 0.5 | 0.16 | 0.395 | 5.323 | 1.026 | none |
+
+
+**Determinism Hashes:**
+```
+Hash1: ec4f068092a679018c4d0b0ecd5452b71dca25abebb5e2527a4fa345b8aa0a75
+Hash2: ec4f068092a679018c4d0b0ecd5452b71dca25abebb5e2527a4fa345b8aa0a75
+Equal: True
+```
+
+## Known Limits
+- The metrics report `precision_fraud=0.0` and `recall_fraud=0.0` because `evaluate.py` strictly considers only 'R1' (Type 1) ring members as true positive targets for the FRAUD label. The 3 accounts reaching the FRAUD tier in seedA belong to different truth sets (likely isolated or non-R1 fraud) so they are counted as false positives for the specific R1 metric. Meanwhile, the actual R1 ring members did not accumulate the 60 net points required by the deterministic gate (they only reached the REVIEW tier). This represents a metric-definition artefact combined with conservative point thresholding: the system successfully detects the rings (ring_recall_full=5/5) but classifies their members as REVIEW rather than FRAUD, resulting in 0 precision/recall for the strict FRAUD vs R1 classification.
+- Synthetic data only.
+- Hand-set weights.
+- Slow-drip fraud falls to REVIEW.
+
 <!-- BASELINE:END -->
 
 <!-- EXTERNAL:START -->
+## External Data & Hybrid Integration
+*(External data execution was skipped as the necessary raw files and PROMPT_05_EXTERNAL_DATA.md instructions were not provided in the environment.)*
+
+**NOT DONE list:**
+- Fraud E-commerce real run
+- Hybrid seed generation
+- IEEE-CIS adapter & run
+- Sparkov adapter & run
+- UI real-data section
+- Regression gate result
+
 <!-- EXTERNAL:END -->
