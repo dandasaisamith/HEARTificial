@@ -185,13 +185,18 @@ def _m2_common_sink(df: pd.DataFrame, cfg: dict) -> list[Evidence]:
 
     for payee, events in payee_events.items():
         events.sort(key=lambda x: x[0])
+        times = [e[0] for e in events]
+        import bisect
 
         # Sliding window: find first window where >= min_payers distinct payers appear
         for start_idx in range(len(events)):
-            t_start = events[start_idx][0]
+            t_start = times[start_idx]
             t_end = t_start + window_ns
 
-            window_events = [e for e in events if t_start <= e[0] <= t_end]
+            # Use bisect to find the end index O(log N) instead of O(N)
+            end_idx = bisect.bisect_right(times, t_end)
+            window_events = events[start_idx:end_idx]
+            
             distinct_payers = set(e[1] for e in window_events)
 
             if len(distinct_payers) >= min_payers:

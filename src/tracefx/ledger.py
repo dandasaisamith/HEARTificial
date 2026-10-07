@@ -37,6 +37,10 @@ def build(
     """
     pts = cfg["points"]
     ledger: dict[str, list[LedgerLine]] = defaultdict(list)
+    
+    # Ensure all accounts exist in the ledger even if they have zero evidence
+    for acc in df["payer_id"].unique():
+        _ = ledger[acc]
 
     # ------------------------------------------------------------------ #
     # Positive evidence: structural motifs                                  #
@@ -172,36 +176,47 @@ def _add_exculpatory(
     df2 = df.copy()
     df2["_bscore"] = behaviour.values if len(behaviour) == len(df) else 0.0
 
-    # Per-account stats
-    for acc, grp in df2.groupby("payer_id"):
-        acc_lines = ledger[acc]  # may be empty if no positive evidence yet
-        # Still add exculpatory — it will be visible in the why-not panel
+    # 1. Tenure > 1 year
+    if "account_open_date" in df2.columns:
+        aod_valid = df2.dropna(subset=["account_open_date"])
+        if not aod_valid.empty:
+            # We can just check the max timestamp per payer against their first AOD
+            max_ts = aod_valid.groupby("payer_id")["ts"].max()
+            first_aod = pd.to_datetime(aod_valid.groupby("payer_id")["account_open_date"].first(), utc=True)
+            tenures = (max_ts - first_aod).dt.total_seconds() / 86400
+            
+            # Find accounts > tenure_protect
+            established = tenures[tenures > tenure_protect]
+            
+            # For sample txs, take first 2 per account
+            first_txs = aod_valid[aod_valid["payer_id"].isin(established.index)].groupby("payer_id").head(2)
+            tx_map = first_txs.groupby("payer_id")["tx_id"].apply(list)
+            
+            for acc, tenure_val in established.items():
+                sample_tx = tx_map.get(acc, [])
+                ledger[acc].append(LedgerLine(
+                    source="tenure_over_1y",
+                    points=float(pts["tenure_over_1y"]),
+                    text=(
+                        f"{pts['tenure_over_1y']:.0f} Account tenure {tenure_val:.0f} days "
+                        f"(>{tenure_protect:.0f} days): established account reduces suspicion; "
+                        f"sample transactions: {', '.join(sample_tx)}."
+                    ),
+                    tx_ids=tuple(sample_tx),
+                ))
 
-        # 1. Tenure > 1 year
-        if "account_open_date" in grp.columns:
-            aod = grp["account_open_date"].dropna()
-            if not aod.empty:
-                tenure = (grp["ts"].max() - pd.to_datetime(aod.iloc[0], utc=True)).total_seconds() / 86400
-                if tenure > tenure_protect:
-                    sample_tx = grp.sort_values("ts").head(2)["tx_id"].tolist()
-                    ledger[acc].append(LedgerLine(
-                        source="tenure_over_1y",
-                        points=float(pts["tenure_over_1y"]),
-                        text=(
-                            f"{pts['tenure_over_1y']:.0f} Account tenure {tenure:.0f} days "
-                            f"(>{tenure_protect:.0f} days): established account reduces suspicion; "
-                            f"sample transactions: {', '.join(sample_tx)}."
-                        ),
-                        tx_ids=tuple(sample_tx),
-                    ))
-
-        # 2. Repeat payee (payee used >= 3 times)
-        payee_counts = grp["payee_id"].value_counts()
-        repeat_payees = payee_counts[payee_counts >= 3]
-        if not repeat_payees.empty:
-            payee_example = repeat_payees.index[0]
-            count = int(repeat_payees.iloc[0])
-            sample_tx = grp[grp["payee_id"] == payee_example].head(3)["tx_id"].tolist()
+    # 2. Repeat payee (payee used >= 3 times)
+    payee_counts = df2.groupby(["payer_id", "payee_id"]).size()
+    repeat_payees = payee_counts[payee_counts >= 3].reset_index()
+    if not repeat_payees.empty:
+        # Just take the first repeat payee for each account
+        first_repeats = repeat_payees.groupby("payer_id").first()
+        for acc, row in first_repeats.iterrows():
+            payee_example = row["payee_id"]
+            count = row[0]
+            # Since we just need 3 txs, we can just grab them directly
+            # This is still slightly slow but only runs for accounts that actually HAVE a repeat payee
+            sample_tx = df2[(df2["payer_id"] == acc) & (df2["payee_id"] == payee_example)].head(3)["tx_id"].tolist()
             ledger[acc].append(LedgerLine(
                 source="repeat_payee_3plus",
                 points=float(pts["repeat_payee_3plus"]),
@@ -213,14 +228,16 @@ def _add_exculpatory(
                 tx_ids=tuple(sample_tx),
             ))
 
-        # 3. Known device (used >= 5 times)
-        if "device_id" in grp.columns:
-            dev_counts = grp["device_id"].dropna().value_counts()
-            known_devs = dev_counts[dev_counts >= 5]
-            if not known_devs.empty:
-                dev_example = known_devs.index[0]
-                dev_count = int(known_devs.iloc[0])
-                sample_tx = grp[grp["device_id"] == dev_example].head(3)["tx_id"].tolist()
+    # 3. Known device (used >= 5 times)
+    if "device_id" in df2.columns:
+        dev_counts = df2.groupby(["payer_id", "device_id"]).size()
+        known_devs = dev_counts[dev_counts >= 5].reset_index()
+        if not known_devs.empty:
+            first_devs = known_devs.groupby("payer_id").first()
+            for acc, row in first_devs.iterrows():
+                dev_example = row["device_id"]
+                dev_count = row[0]
+                sample_tx = df2[(df2["payer_id"] == acc) & (df2["device_id"] == dev_example)].head(3)["tx_id"].tolist()
                 ledger[acc].append(LedgerLine(
                     source="known_device_5plus",
                     points=float(pts["known_device_5plus"]),
@@ -232,17 +249,27 @@ def _add_exculpatory(
                     tx_ids=tuple(sample_tx),
                 ))
 
-        # 4. Amount within p95
-        amounts = grp["amount"]
-        p95 = amounts.quantile(0.95)
-        if amounts.max() <= p95 * 1.05:  # within 5% of p95
-            sample_tx = grp.nlargest(2, "amount")["tx_id"].tolist()
+    # 4. Amount within p95
+    # Calculate max and p95 per account
+    acc_stats = df2.groupby("payer_id")["amount"].agg(["max", lambda x: x.quantile(0.95)])
+    acc_stats.columns = ["max", "p95"]
+    within_p95 = acc_stats[acc_stats["max"] <= acc_stats["p95"] * 1.05]
+    
+    if not within_p95.empty:
+        # Get top 2 transactions by amount for each account
+        top_txs = df2[df2["payer_id"].isin(within_p95.index)].sort_values(["payer_id", "amount"], ascending=[True, False]).groupby("payer_id").head(2)
+        tx_map = top_txs.groupby("payer_id")["tx_id"].apply(list)
+        
+        for acc, row in within_p95.iterrows():
+            max_amt = row["max"]
+            p95_amt = row["p95"]
+            sample_tx = tx_map.get(acc, [])
             ledger[acc].append(LedgerLine(
                 source="amount_within_p95",
                 points=float(pts["amount_within_p95"]),
                 text=(
                     f"{pts['amount_within_p95']:.0f} Transaction amounts within account p95 "
-                    f"(max ₹{amounts.max():.0f} vs p95 ₹{p95:.0f}): "
+                    f"(max ₹{max_amt:.0f} vs p95 ₹{p95_amt:.0f}): "
                     f"no unusual amount spike; transactions: {', '.join(sample_tx)}."
                 ),
                 tx_ids=tuple(sample_tx),

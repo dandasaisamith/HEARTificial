@@ -9,7 +9,8 @@ st.markdown("### Temporal Risk & Coordinated Evidence Engine")
 st.markdown("Behavioural anomaly detection + coordinated evidence + deterministic precision gate.")
 
 # Discover Datasets
-registry = datasets.scan_datasets("data")
+registry_list = datasets.discover_datasets()
+registry = {d["name"]: d for d in registry_list}
 if not registry:
     st.error("No datasets found in data/ or data/Traindata/")
     st.stop()
@@ -62,12 +63,21 @@ if run_btn and st.session_state.selected_dataset:
     
     start_time = time.time()
     
-    def on_progress(stage: str, msg: str, elapsed: float):
-        desc = stage_texts.get(stage, f"Running {stage}...")
-        status_placeholder.markdown(f"**{desc}**\n*(Elapsed: {elapsed:.2f}s)*")
+    def on_progress(event):
+        stage = event.get("stage", "")
+        name = event.get("name", "")
+        status = event.get("status", "")
+        elapsed = event.get("elapsed", 0.0)
+        if status == "running":
+            desc = stage_texts.get(name, f"Running {name}...")
+            status_placeholder.markdown(f"**{stage} {desc}**\n*(Running...)*")
+        elif status == "done":
+            desc = stage_texts.get(name, f"{name} complete.")
+            status_placeholder.markdown(f"**{stage} {desc}**\n*(Elapsed: {elapsed:.2f}s)*")
         
     with st.spinner("Executing TRACE-FX Pipeline..."):
-        res = engine_api.run_pipeline_with_ui(ds_path, on_progress)
+        df = schema.load(ds_path)
+        res = engine_api.run_pipeline(df, on_event=on_progress)
         
     total_elapsed = time.time() - start_time
     st.session_state.run_result = res

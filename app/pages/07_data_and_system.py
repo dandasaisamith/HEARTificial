@@ -8,7 +8,8 @@ st.title("DATA & SYSTEM")
 st.markdown("Dataset registry, capability mapping, and real-time system status.")
 
 st.markdown("### Dataset Registry")
-registry = datasets.scan_datasets("data")
+registry_list = datasets.discover_datasets()
+registry = {d["name"]: d for d in registry_list}
 
 if not registry:
     st.warning("No datasets discovered.")

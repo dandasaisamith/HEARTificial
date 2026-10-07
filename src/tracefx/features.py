@@ -46,33 +46,38 @@ def build(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     feats["ts_epoch"] = df["ts"].astype("int64") // 10**9  # Unix seconds
 
     # Amount deviation from account history
-    amount_hist_mean = (
-        grp["amount"]
-        .transform(lambda s: s.shift(1).expanding().mean())
-        .fillna(0.0)
-    )
-    amount_hist_std = (
-        grp["amount"]
-        .transform(lambda s: s.shift(1).expanding().std())
-        .fillna(1.0)
-        .replace(0.0, 1.0)
-    )
+    shifted_amt = grp["amount"].shift(1)
+    amt_cumcnt = grp["amount"].cumcount() # 0-indexed, so shifted_amt has NaN at 0
+    
+    amount_hist_mean = (shifted_amt.groupby(df["payer_id"]).cumsum() / amt_cumcnt.replace(0, np.nan)).fillna(0.0)
+    
+    # Fast expanding variance
+    shifted_amt2 = shifted_amt ** 2
+    mean_of_sq = shifted_amt2.groupby(df["payer_id"]).cumsum() / amt_cumcnt.replace(0, np.nan)
+    sq_of_mean = amount_hist_mean ** 2
+    var = (mean_of_sq - sq_of_mean) * (amt_cumcnt / (amt_cumcnt - 1).replace(0, np.nan))
+    amount_hist_std = np.sqrt(var.clip(lower=0)).fillna(1.0).replace(0.0, 1.0)
+    
     feats["amount_zscore"] = ((df["amount"] - amount_hist_mean) / amount_hist_std).clip(-5, 5).fillna(0.0)
 
     # Hour of day deviation (0=midnight, ..-1 etc)
     hour = df["ts"].dt.hour + df["ts"].dt.minute / 60.0
     feats["hour_of_day"] = hour
+    
+    df["_hour"] = hour
+    shifted_hr = df.groupby("payer_id")["_hour"].shift(1)
+    hr_cumcnt = df.groupby("payer_id")["_hour"].cumcount()
+    
+    hour_hist_mean = (shifted_hr.groupby(df["payer_id"]).cumsum() / hr_cumcnt.replace(0, np.nan)).fillna(12.0)
+    
+    shifted_hr2 = shifted_hr ** 2
+    hr_mean_of_sq = shifted_hr2.groupby(df["payer_id"]).cumsum() / hr_cumcnt.replace(0, np.nan)
+    hr_sq_of_mean = hour_hist_mean ** 2
+    hr_var = (hr_mean_of_sq - hr_sq_of_mean) * (hr_cumcnt / (hr_cumcnt - 1).replace(0, np.nan))
+    hour_hist_std = np.sqrt(hr_var.clip(lower=0)).fillna(6.0).replace(0.0, 6.0)
 
-    hour_hist_mean = (
-        grp["ts"].transform(lambda s: s.dt.hour.shift(1).expanding().mean())
-        .fillna(12.0)
-    )
-    hour_hist_std = (
-        grp["ts"].transform(lambda s: s.dt.hour.shift(1).expanding().std())
-        .fillna(6.0)
-        .replace(0.0, 6.0)
-    )
     feats["hour_zscore"] = ((hour - hour_hist_mean) / hour_hist_std).clip(-3, 3).fillna(0.0)
+    df.drop(columns=["_hour"], inplace=True)
 
     # Velocity: count of transactions in rolling windows
     # We use a merge-asof approach: for each tx, count preceding tx within window
@@ -106,26 +111,12 @@ def build(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
 
     # New payee rate: fraction of past payees that are new for this payer
     # (1 = first time seeing this payee, 0 = repeat)
-    seen_payees: dict[str, set] = defaultdict(set)
-    new_payee_flag = np.zeros(len(df), dtype=float)
-    for i in range(len(df)):
-        pid = df.at[i, "payer_id"]
-        payee = df.at[i, "payee_id"]
-        new_payee_flag[i] = 1.0 if payee not in seen_payees[pid] else 0.0
-        seen_payees[pid].add(payee)
-    feats["new_payee_flag"] = new_payee_flag
+    # Fast vectorized approach using duplicated
+    feats["new_payee_flag"] = (~df.duplicated(subset=["payer_id", "payee_id"])).astype(float)
 
     # New device signal
     if "device_id" in df.columns:
-        seen_devices: dict[str, set] = defaultdict(set)
-        new_device_flag = np.zeros(len(df), dtype=float)
-        for i in range(len(df)):
-            pid = df.at[i, "payer_id"]
-            dev = df.at[i, "device_id"] if pd.notna(df.at[i, "device_id"]) else None
-            if dev is not None:
-                new_device_flag[i] = 1.0 if dev not in seen_devices[pid] else 0.0
-                seen_devices[pid].add(dev)
-        feats["new_device_flag"] = new_device_flag
+        feats["new_device_flag"] = (~df.dropna(subset=["device_id"]).duplicated(subset=["payer_id", "device_id"])).astype(float).reindex(df.index, fill_value=0.0)
     else:
         feats["new_device_flag"] = 0.0
 
@@ -138,26 +129,15 @@ def build(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     feats["amount_pct_rank"] = df["amount"].rank(pct=True)
 
     # Repeat payee count (how many times has this payer paid this payee before?)
-    payee_counts: dict[tuple, int] = defaultdict(int)
-    repeat_payee_count = np.zeros(len(df), dtype=float)
-    for i in range(len(df)):
-        key = (df.at[i, "payer_id"], df.at[i, "payee_id"])
-        repeat_payee_count[i] = float(payee_counts[key])
-        payee_counts[key] += 1
-    feats["repeat_payee_count"] = repeat_payee_count
+    # cumcount on (payer_id, payee_id) gives exactly the number of prior occurrences!
+    feats["repeat_payee_count"] = df.groupby(["payer_id", "payee_id"]).cumcount().astype(float)
 
     # Known device count (how many times has this payer used this device before?)
     if "device_id" in df.columns:
-        device_counts: dict[tuple, int] = defaultdict(int)
-        known_device_count = np.zeros(len(df), dtype=float)
-        for i in range(len(df)):
-            pid = df.at[i, "payer_id"]
-            dev = df.at[i, "device_id"] if pd.notna(df.at[i, "device_id"]) else None
-            if dev is not None:
-                key = (pid, dev)
-                known_device_count[i] = float(device_counts[key])
-                device_counts[key] += 1
-        feats["known_device_count"] = known_device_count
+        # subset to notna to avoid counting NaNs
+        valid_devs = df.dropna(subset=["device_id"])
+        known_devs = valid_devs.groupby(["payer_id", "device_id"]).cumcount().astype(float)
+        feats["known_device_count"] = known_devs.reindex(df.index, fill_value=0.0)
     else:
         feats["known_device_count"] = 0.0
 
