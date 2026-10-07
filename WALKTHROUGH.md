@@ -257,10 +257,19 @@ Equal: True
 <!-- EXTERNAL:START -->
 ## External Data & Hybrid Integration
 **External Evaluation:**
-not produced
+| seed_file | seed | n_transactions | n_accounts | n_fraud_accounts | n_review_accounts | n_groups | ring_full | ring_partial | ring_missed | ring_recall_full | fp_legit_hv_fraud_only | fp_legit_hv_fraud_or_review | precision_fraud | recall_fraud | precision_fraud_anyring | recall_fraud_anyring | precision_fraud_or_review_anyring | recall_fraud_or_review_anyring | precision_at_10 | precision_at_50 | pr_auc | elapsed_s | latency_per_tx_ms | degraded_stages |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| hybrid_seed | unknown | 40013 | 40013 | 5 | 2248 | 436 | 2 | 1 | 0 | 2/3 | 0 | 0 | 1.0 | 0.3125 | 1.0 | 0.0006 | 0.7506 | 0.1861 | 1.0 | 0.22 | 0.8672 | 467.068 | 11.673 | none |
+
 
 **External Summary:**
-not produced
+# External Data Summary: Fraud E-Commerce
+
+- **Total converted rows:** 151,112
+- **Sub-sample rows:** 40,000 (first chronological)
+- **Time/Cost:** Pipeline scored in 355.99s
+- **Structural Evidence Yield (without injection):** 444 evidence items (443 M1 Shared Device, 1 M2 Common Sink). M3, M4, M5 did not yield on this subsample due to dataset characteristics (constant merchant payee limits sequence cohorts, missing pass-through multi-hop structure).
+
 
 **Tuning Log:**
 # Tuning Log and Guardrail Decisions
