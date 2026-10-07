@@ -62,12 +62,11 @@ pip install -e .
 pip install -r requirements.txt
 python -m tracefx data
 python -m tracefx eval --data-dir data --out reports
+python -m tracefx score data\demo_small.csv --out reports --explain
 python -m streamlit run app/app.py
 ```
 
 Open <http://localhost:8501>.
-
-<!-- TODO: confirm whether `python -m tracefx demo` exists in src/tracefx/cli.py. The available walkthrough documents `data`, `eval`, and Streamlit launch instead. -->
 
 </details>
 
@@ -84,6 +83,7 @@ pip install -e .
 pip install -r requirements.txt
 python -m tracefx data
 python -m tracefx eval --data-dir data --out reports
+python -m tracefx score data/demo_small.csv --out reports --explain
 python -m streamlit run app/app.py
 ```
 
@@ -97,6 +97,23 @@ Open <http://localhost:8501>.
 <summary>What this quickstart uses</summary>
 
 The documented path uses a Python virtual environment and local package installation. Docker is not required by the supplied Windows walkthrough. The generator writes `seedA.csv`, `seedB.csv`, `seedC.csv`, and `demo_small.csv` under `data/`; evaluation writes `reports/eval_results.csv`.
+
+</details>
+
+### Verified CLI usage
+
+<details>
+<summary>Commands and outputs</summary>
+
+```bash
+python -m tracefx score INPUT [--out OUT] [--explain]
+python -m tracefx eval [--data-dir DATA_DIR] [--out OUT]
+python -m tracefx data [--data-dir DATA_DIR]
+```
+
+- `score` defaults to `--out reports/`, writes `result.json`, `accounts.csv`, and `transactions.csv`, and prints a summary with transactions, accounts, `FRAUD`/`REVIEW`/`LEGIT` accounts, evidence items, groups, elapsed time, and degraded stages when present.
+- `eval` defaults to `--data-dir data/` and `--out reports/`, searches for `seedA`, `seedB`, `seedC`, and `demo_small` CSV/truth pairs, and reports evaluation results.
+- `data` defaults to `--data-dir data/` and generates `demo_small`, `seedA`, `seedB`, and `seedC`.
 
 </details>
 
