@@ -113,7 +113,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir) if args.data_dir else Path("data")
 
     only_list = args.only.split(",") if args.only else []
-    for seed_name in ["seedA", "seedB", "seedC", "demo_small"]:
+    for seed_name in ["seedA", "seedB", "seedC", "demo_small", "hybrid_seed"]:
         if only_list and seed_name not in only_list:
             continue
         csv = data_dir / f"{seed_name}.csv"
