@@ -1,0 +1,12 @@
+[
+  {
+    "type": "M2_COMMON_SINK",
+    "accounts": ["A1", "A2", "A3", "A4"],
+    "tx_ids": ["T100", "T101", "T102", "T103"],
+    "first_ts": "2026-10-01T10:00:00Z",
+    "last_ts": "2026-10-01T11:00:00Z",
+    "satisfied_at": "2026-10-01T11:00:00Z",
+    "strength": 0.9,
+    "detail": "4 distinct accounts paid this wallet within 1 hour."
+  }
+]

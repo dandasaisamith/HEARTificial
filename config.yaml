@@ -1,0 +1,63 @@
+seed: 42
+
+graph:
+  deg_cap_device: 8
+  deg_cap_ip: 8
+
+features:
+  window_short_h: 1
+  window_long_h: 24
+  tenure_days_protect: 365
+
+baseline:
+  contamination: 0.02
+  behaviour_flag_pct: 0.97
+
+motifs:
+  common_sink:
+    min_payers: 4
+    window_h: 24
+  pass_through:
+    min_ratio: 0.8
+    window_min: 30
+  sequence:
+    ngram: 3
+    min_shared_rare: 2
+    min_cohort: 4
+    idf_rare_quantile: 0.9
+    require_convergence: true
+  burst:
+    z: 3.0
+    window_h: 1
+  sleeper:
+    dormant_days: 90
+
+points:
+  behaviour_max: 20
+  shared_device: 20
+  common_sink: 30
+  pass_through: 25
+  sequence_cohort: 25
+  burst: 10
+  sleeper: 10
+  tenure_over_1y: -15
+  repeat_payee_3plus: -20
+  known_device_5plus: -10
+  amount_within_p95: -10
+  within_peer_range: -5
+
+gate:
+  fraud_net: 60
+  fraud_min_structural_types: 2
+  review_net: 30
+
+rollup:
+  noisy_or: true
+
+scorer:
+  mode: auto
+
+limits:
+  demo_rows: 5000
+  eval_rows: 50000
+  ui_max_rows: 200000
