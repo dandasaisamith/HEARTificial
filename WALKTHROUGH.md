@@ -267,3 +267,20 @@ Equal: True
 - Regression gate result
 
 <!-- EXTERNAL:END -->
+
+## Current State & Next Steps
+
+### Tech Stack & Libraries
+- **Core:** Python 3.10+, Dataclasses
+- **Data & Compute:** pandas, numpy, scikit-learn (IsolationForest)
+- **Graph & Visualization:** networkx, vis-network (vendored)
+- **Frontend / UI:** streamlit
+- **Testing & Tooling:** pytest, pyyaml
+
+### What's Next
+The system currently relies exclusively on the generated synthetic datasets (seedA, seedB, seedC, demo_small). The next planned phases are:
+1. **External Data Integration:** Parse and adapt real-world transaction logs (Fraud E-commerce, IEEE-CIS, Sparkov).
+2. **Hybrid Seed Generation:** Inject synthetic structural rings (M1-M5) into the real-world external transaction backgrounds to measure true ring-recall without losing natural noise.
+3. **Advanced UI Filters:** Introduce dataset pickers and capability indicators directly in the Streamlit frontend.
+
+*(Note: Execution of these phases is currently paused pending the injection of docs/PROMPT_05_EXTERNAL_DATA.md and related data dictionaries).*
