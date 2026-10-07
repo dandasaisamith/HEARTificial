@@ -1,0 +1,25 @@
+
+==================================================
+TRACE-FX Results Summary
+==================================================
+Transactions:    40000
+Accounts:        40000
+FRAUD accounts:  0
+REVIEW accounts: 2240
+LEGIT accounts:  37761
+Evidence items:  444
+Groups:          433
+Elapsed:         355.99s
+Output:          reports\ecommerce/
+==================================================
+
+
+2026-10-07 12:16:43,142 INFO tracefx.schema Loaded 40000 transactions from ecommerce_40k.csv
+2026-10-07 12:16:43,142 INFO tracefx.cli Running TRACE-FX pipeline on data\external\ecommerce_40k.csv (40000 rows)
+2026-10-07 12:17:40,549 INFO tracefx.graph Graph built: 103524 nodes, 105852 edges
+2026-10-07 12:18:06,557 INFO tracefx.motifs Motif M1: 443 evidence items
+2026-10-07 12:18:08,663 INFO tracefx.motifs Motif M2: 1 evidence items
+2026-10-07 12:22:39,138 INFO tracefx.pipeline Pipeline complete in 355.99s: 0 fraud, 2240 review, 37761 legit accounts
+2026-10-07 12:22:40,559 INFO tracefx.cli Result saved to reports\ecommerce\result.json
+2026-10-07 12:22:40,609 INFO tracefx.cli Accounts saved to reports\ecommerce\accounts.csv
+2026-10-07 12:22:40,888 INFO tracefx.cli Transactions saved to reports\ecommerce\transactions.csv
