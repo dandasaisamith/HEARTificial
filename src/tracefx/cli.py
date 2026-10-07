@@ -29,7 +29,7 @@ def cmd_score(args: argparse.Namespace) -> int:
     # Load config
     cfg_path = args.config if args.config else None
     try:
-        cfg = config_mod.load(cfg_path)
+        cfg = config_mod.load(None, cfg_path)
     except Exception as exc:
         log.error("Failed to load config: %s", exc)
         return 1
@@ -103,7 +103,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
 
     cfg_path = args.config if args.config else None
     try:
-        cfg = config_mod.load(cfg_path)
+        cfg = config_mod.load(None, cfg_path)
     except Exception as exc:
         log.error("Failed to load config: %s", exc)
         return 1
@@ -112,7 +112,10 @@ def cmd_eval(args: argparse.Namespace) -> int:
     seed_paths = []
     data_dir = Path(args.data_dir) if args.data_dir else Path("data")
 
+    only_list = args.only.split(",") if args.only else []
     for seed_name in ["seedA", "seedB", "seedC", "demo_small"]:
+        if only_list and seed_name not in only_list:
+            continue
         csv = data_dir / f"{seed_name}.csv"
         truth = data_dir / f"truth_{seed_name}.json"
         if csv.exists() and truth.exists():
@@ -159,7 +162,6 @@ def main() -> int:
         prog="tracefx",
         description="TRACE-FX: Fraud Intelligence System",
     )
-    parser.add_argument("--config", "-c", help="Path to config.yaml", default=None)
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -167,6 +169,7 @@ def main() -> int:
     score_p = subparsers.add_parser("score", help="Score a transaction CSV file")
     score_p.add_argument("input", help="Path to input CSV file")
     score_p.add_argument("--out", "-o", help="Output directory (default: reports/)")
+    score_p.add_argument("--config", "-c", help="Path to overlay config.yaml", default=None)
     score_p.add_argument("--explain", "-e", action="store_true", help="Print top group explanation")
     score_p.add_argument("--json", action="store_true", help="Output JSON result to stdout")
 
@@ -174,6 +177,8 @@ def main() -> int:
     eval_p = subparsers.add_parser("eval", help="Run evaluation on seed files")
     eval_p.add_argument("--data-dir", "-d", help="Data directory (default: data/)")
     eval_p.add_argument("--out", "-o", help="Output directory (default: reports/)")
+    eval_p.add_argument("--config", "-c", help="Path to overlay config.yaml", default=None)
+    eval_p.add_argument("--only", help="Comma-separated list of seeds to run")
 
     # data
     data_p = subparsers.add_parser("data", help="Generate synthetic datasets")

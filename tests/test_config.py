@@ -68,3 +68,30 @@ def test_graph_hub_caps_in_config():
     cfg = config.default_config()
     assert cfg["graph"]["deg_cap_device"] == 8
     assert cfg["graph"]["deg_cap_ip"] == 8
+
+def test_config_overlay(tmp_path):
+    from tracefx import config
+    cfg_path = tmp_path / "base.yaml"
+    cfg_data = config.default_config()
+    cfg_path.write_text(yaml.dump(cfg_data))
+    
+    ov_path = tmp_path / "ov.yaml"
+    ov_path.write_text(yaml.dump({"gate": {"fraud_net": 70}, "features": {"use_since_open": True}}))
+    
+    cfg = config.load(cfg_path, ov_path)
+    assert cfg["gate"]["fraud_net"] == 70
+    assert cfg["gate"]["fraud_min_structural_types"] == 2
+    assert cfg["features"]["use_since_open"] is True
+
+def test_config_overlay_rejects_unknown(tmp_path):
+    from tracefx import config
+    cfg_path = tmp_path / "base.yaml"
+    cfg_data = config.default_config()
+    cfg_path.write_text(yaml.dump(cfg_data))
+    
+    ov_path = tmp_path / "ov.yaml"
+    ov_path.write_text(yaml.dump({"unknown_evil_key": "bad"}))
+    
+    import pytest
+    with pytest.raises(KeyError, match="Unknown config key"):
+        config.load(cfg_path, ov_path)

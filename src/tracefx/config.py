@@ -16,7 +16,7 @@ import yaml
 _REQUIRED_KEYS: dict[str, Any] = {
     "seed": int,
     "graph": {"deg_cap_device": int, "deg_cap_ip": int},
-    "features": {"window_short_h": (int, float), "window_long_h": (int, float), "tenure_days_protect": (int, float)},
+"features": {"window_short_h": (int, float), "window_long_h": (int, float), "tenure_days_protect": (int, float), "use_since_open": bool},
     "baseline": {"contamination": float, "behaviour_flag_pct": float},
     "motifs": {
         "common_sink": {"min_payers": int, "window_h": (int, float)},
@@ -67,7 +67,14 @@ def _check_keys(cfg: dict, schema: dict, path: str = "") -> None:
                 raise KeyError(f"Unknown config key: {full!r}")
 
 
-def load(path: str | Path | None = None) -> dict:
+def _deep_merge(base: dict, overlay: dict) -> None:
+    for k, v in overlay.items():
+        if k in base and isinstance(base[k], dict) and isinstance(v, dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+
+def load(path: str | Path | None = None, overlay: str | Path | None = None) -> dict:
     """Load and validate config.yaml.
 
     Args:
@@ -98,6 +105,12 @@ def load(path: str | Path | None = None) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
+    if overlay is not None:
+        with open(overlay, "r", encoding="utf-8") as f:
+            ov_cfg = yaml.safe_load(f)
+        if ov_cfg:
+            _deep_merge(cfg, ov_cfg)
+
     _check_keys(cfg, _REQUIRED_KEYS)
     return cfg
 
@@ -117,7 +130,7 @@ def default_config() -> dict:
     return copy.deepcopy({
         "seed": 42,
         "graph": {"deg_cap_device": 8, "deg_cap_ip": 8},
-        "features": {"window_short_h": 1, "window_long_h": 24, "tenure_days_protect": 365},
+        "features": {"window_short_h": 1, "window_long_h": 24, "tenure_days_protect": 365, "use_since_open": False},
         "baseline": {"contamination": 0.02, "behaviour_flag_pct": 0.97},
         "motifs": {
             "common_sink": {"min_payers": 4, "window_h": 24},

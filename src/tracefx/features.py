@@ -165,6 +165,8 @@ def build(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     if "account_open_date" in df.columns:
         tenure = (df["ts"] - pd.to_datetime(df["account_open_date"], utc=True)).dt.total_seconds() / 86400
         feats["tenure_days"] = tenure.clip(0).fillna(0.0)
+        if cfg["features"].get("use_since_open", False):
+            feats["since_open_hours"] = (tenure * 24).clip(0).fillna(0.0)
     else:
         feats["tenure_days"] = 365.0  # neutral prior
 

@@ -8,6 +8,7 @@ features:
   window_short_h: 1
   window_long_h: 24
   tenure_days_protect: 365
+  use_since_open: false
 
 baseline:
   contamination: 0.02

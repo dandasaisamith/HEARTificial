@@ -85,7 +85,7 @@ evaluate.report(seed_paths, cfg) -> pd.DataFrame
 ```yaml
 seed: 42
 graph: {deg_cap_device: 8, deg_cap_ip: 8}
-features: {window_short_h: 1, window_long_h: 24, tenure_days_protect: 365}
+features: {window_short_h: 1, window_long_h: 24, tenure_days_protect: 365, use_since_open: false}
 baseline: {contamination: 0.02, behaviour_flag_pct: 0.97}
 motifs:
   common_sink: {min_payers: 4, window_h: 24}
