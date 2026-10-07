@@ -21,9 +21,9 @@ if "replay_events" not in st.session_state:
         events.append({"ts": ev.satisfied_at, "type": "evidence", "id": ev.type, "desc": f"Structural Evidence: {ev.type.upper()}"})
         
     # Alerts
-    for acc_id, dec in res.decisions.items():
-        if dec.label in ("FRAUD", "REVIEW"):
-            events.append({"ts": dec.alert_ts, "type": "alert", "id": acc_id, "desc": f"PRECISION GATE PASSED: {dec.label} on {acc_id}"})
+    for _, row in res.accounts.iterrows():
+        if row["label"] in ("FRAUD", "REVIEW"):
+            events.append({"ts": row["alert_ts"], "type": "alert", "id": row["account_id"], "desc": f"PRECISION GATE PASSED: {row['label']} on {row['account_id']}"})
             
     events.sort(key=lambda x: pd.to_datetime(x["ts"]))
     st.session_state.replay_events = events

@@ -100,18 +100,22 @@ if "run_result" in st.session_state and st.session_state.run_result:
     st.markdown("---")
     st.markdown("### TOP INVESTIGATION")
     
-    # Get top risk account
     if not res.accounts.empty:
         top_acc = res.accounts.iloc[0]
         acc_id = top_acc["account_id"]
-        dec = res.decisions[acc_id]
         
-        tc1, tc2, tc3, tc4 = st.columns(4)
-        tc1.markdown(f"**Account**: `{acc_id}`")
-        tc2.markdown(f"**Risk**: {dec.risk:.2f}")
-        tc3.markdown(f"**Net Evidence**: {dec.net_points}")
-        tc4.markdown(f"**Action**: {dec.action}")
-        
-        if st.button("OPEN INVESTIGATION", type="primary"):
-            st.session_state.investigate_target = acc_id
-            st.switch_page("pages/03_investigate.py")
+        # res.decisions is keyed by tx_id, so find a tx for this account
+        txs = res.tx[res.tx["payer_id"] == acc_id]
+        if not txs.empty:
+            first_tx = txs.iloc[0]["tx_id"]
+            dec = res.decisions[first_tx]
+            
+            tc1, tc2, tc3, tc4 = st.columns(4)
+            tc1.markdown(f"**Account**: `{acc_id}`")
+            tc2.markdown(f"**Risk**: {dec.risk:.2f}")
+            tc3.markdown(f"**Net Evidence**: {dec.net_points}")
+            tc4.markdown(f"**Action**: {dec.action}")
+            
+            if st.button("OPEN INVESTIGATION", type="primary"):
+                st.session_state.investigate_target = acc_id
+                st.switch_page("pages/03_investigate.py")

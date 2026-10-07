@@ -37,16 +37,21 @@ target_acc = st.selectbox("Select Account for Full Investigation", df_acc["accou
                          index=0 if search_acc in df_acc["account_id"].tolist() else 0)
 
 if target_acc:
-    dec = res.decisions[target_acc]
-    st.markdown(f"## FRAUD INVESTIGATION: `{target_acc}`")
-    
-    # Header summary
-    hc1, hc2, hc3, hc4, hc5 = st.columns(5)
-    hc1.metric("Decision", dec.label)
-    hc2.metric("Risk", f"{dec.risk:.2f}")
-    hc3.metric("Net Evidence", dec.net_points)
-    hc4.metric("Alert Time", dec.alert_ts)
-    hc5.metric("Action", dec.action)
+    txs = res.tx[res.tx["payer_id"] == target_acc]
+    if not txs.empty:
+        first_tx = txs.iloc[0]["tx_id"]
+        dec = res.decisions[first_tx]
+        st.markdown(f"## FRAUD INVESTIGATION: `{target_acc}`")
+        
+        # Header summary
+        hc1, hc2, hc3, hc4, hc5 = st.columns(5)
+        # Use account-level label from accounts df
+        acc_label = res.accounts[res.accounts["account_id"] == target_acc].iloc[0]["label"]
+        hc1.metric("Decision", acc_label)
+        hc2.metric("Risk", f"{dec.risk:.2f}")
+        hc3.metric("Net Evidence", dec.net_points)
+        hc4.metric("Alert Time", dec.alert_ts)
+        hc5.metric("Action", dec.action)
     
     st.markdown("---")
     
@@ -63,11 +68,12 @@ if target_acc:
         
         # Get baseline features if available
         # we don't have the exact features df in res, but we can fake the display using score
-        st.metric("BEHAVIOURAL ANOMALY SCORE", f"{dec.base_score:.2f}")
+        bscore = txs.iloc[0]["behaviour_score"] if "behaviour_score" in txs.columns else 0.0
+        st.metric("BEHAVIOURAL ANOMALY SCORE", f"{bscore:.2f}")
         st.caption("Behavioural anomaly score — not fraud probability.")
         st.info("Isolation Forest identifies unusual behavioural profiles. Structural evidence and the precision gate are required for FRAUD.")
         
-        if dec.label == "LEGIT" and dec.base_score > 0.6:
+        if acc_label == "LEGIT" and bscore > 0.6:
             st.markdown("---")
             st.markdown("### 🛡️ WHY WAS THIS LEGITIMATE TRANSACTION NOT BLOCKED?")
             st.markdown("TRACE-FX protects this account because:")
@@ -108,7 +114,7 @@ COUNTER-EVIDENCE
 {neg_pts}
 
 FINAL DECISION
-{dec.label}
+{acc_label}
 
 ACTION
 {dec.action}
