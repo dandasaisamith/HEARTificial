@@ -1,21 +1,18 @@
-# UI_CHECK.md
+# TRACE-FX UI Verification
 
-| FEATURE | STATUS | OBSERVATION |
+## Core UI Components
+
+| Component | Status | Notes |
 |---|---|---|
-| demo_small loads | PASS | Dataframe rendered successfully, engine ran. |
-| seedA loads | PASS | Automatically tested via engine startup. |
-| Fraud E-commerce loads | PASS | AppTest confirms UI renders without tracebacks. |
-| hybrid loads | PASS | Compatible with existing CSV ingestion. |
-| dataset picker works | PASS | Dataset selection re-runs the caching wrapper correctly. |
-| run button works | PASS | Engine caching is triggered on load automatically; mode toggle active. |
-| risk queue works | PASS | High-risk queue displays top 10 accounts from `result.accounts`. |
-| investigation works | PASS | `decisions` correctly displayed with Exculpatory logic. |
-| graph works | PASS | Vendored `vis-network` replay HTML generated successfully. |
-| replay works | PASS | `reports/replay.html` correctly iframe embedded. |
-| why-not works | PASS | Successfully queries >90th percentile legit txs. |
-| evaluation works | PASS | Loads `eval_results.csv` and `external_eval.csv` cleanly. |
-| PS04 compliance screen works | PASS | Static matrix loads and renders clearly. |
-| How TRACE-FX Works works | PASS | Technical algorithm flow rendered correctly. |
-| Judge Mode works | PASS | Session state variable toggles. |
-| Audit Mode works | PASS | Technical metadata correctly shown on sidebar when selected. |
-| case file export works | PASS | CLI retains export, UI exposes replay HTML. |
+| Multi-page Routing | PASS | Handled by `st.navigation` in `app/app.py`. |
+| Mission Control | PASS | Selects datasets, discovers `data/Traindata/`, runs pipeline, live events. |
+| Scorecard | PASS | Recomputes exact strict/any-ring metrics from `Result`. |
+| Case Queue | PASS | Ranked list of accounts/transactions, shows evidence ledger + gate. |
+| Fraud Rings | PASS | NetworkX to Plotly rendering, ring cards, M1-M5 badges. |
+| Temporal Replay | PASS | Uses `st.fragment(run_every=...)` to advance `replay_idx` safely. |
+| How It Works | PASS | Live PS04 mapping matrix and engine architecture. |
+
+## Test Workflows
+- **Dataset Execution:** Pipeline outputs exact identical scores to baseline (`demo_small`).
+- **Streamlit Launch:** Runs without crashes.
+- **PS04 Requirements:** 15/15 visibly implemented.
