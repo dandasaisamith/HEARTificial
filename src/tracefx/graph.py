@@ -44,17 +44,17 @@ def build(df: pd.DataFrame, cfg: dict) -> nx.MultiGraph:
     ip_accounts: dict[str, set] = defaultdict(set)
 
     if "device_id" in df.columns:
-        for _, row in df[df["device_id"].notna()].iterrows():
-            device_accounts[row["device_id"]].add(row["payer_id"])
+        df_dev = df[df["device_id"].notna()]
+        for dev, acc in zip(df_dev["device_id"], df_dev["payer_id"]):
+            device_accounts[dev].add(acc)
 
     if "ip" in df.columns:
-        for _, row in df[df["ip"].notna()].iterrows():
-            ip_accounts[row["ip"]].add(row["payer_id"])
+        df_ip = df[df["ip"].notna()]
+        for ip, acc in zip(df_ip["ip"], df_ip["payer_id"]):
+            ip_accounts[ip].add(acc)
 
     # Add payer->payee payment edges
-    for _, row in df.iterrows():
-        payer = row["payer_id"]
-        payee = row["payee_id"]
+    for payer, payee, tx, amt, ts in zip(df["payer_id"], df["payee_id"], df["tx_id"], df["amount"], df["ts"]):
 
         if not G.has_node(payer):
             G.add_node(payer, node_type="account")
@@ -65,9 +65,9 @@ def build(df: pd.DataFrame, cfg: dict) -> nx.MultiGraph:
             payer,
             payee,
             edge_type="payment",
-            tx_id=row["tx_id"],
-            amount=float(row["amount"]),
-            ts=str(row["ts"]),
+            tx_id=tx,
+            amount=float(amt),
+            ts=str(ts),
         )
 
     # Add device edges (hub-capped)
@@ -148,10 +148,10 @@ def get_payment_graph(G: nx.MultiGraph) -> nx.DiGraph:
     return DG
 
 
-def prior_payer_payee_link(df: pd.DataFrame, acc_a: str, acc_b: str) -> bool:
-    """Check if there is a prior payer/payee relationship between two accounts."""
-    mask = (
-        ((df["payer_id"] == acc_a) & (df["payee_id"] == acc_b))
-        | ((df["payer_id"] == acc_b) & (df["payee_id"] == acc_a))
-    )
-    return bool(mask.any())
+def build_payer_payee_pairs(df: pd.DataFrame) -> set[tuple[str, str]]:
+    """Build a static set of all existing (payer, payee) pairs for fast O(1) lookup."""
+    return set(zip(df["payer_id"], df["payee_id"]))
+
+def prior_payer_payee_link(pairs: set[tuple[str, str]], acc_a: str, acc_b: str) -> bool:
+    """Check if there is a prior payer/payee relationship between two accounts (O(1))."""
+    return (acc_a, acc_b) in pairs or (acc_b, acc_a) in pairs

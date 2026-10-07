@@ -78,19 +78,21 @@ def _m1_shared_device(df: pd.DataFrame, G: nx.MultiGraph, cfg: dict) -> list[Evi
             acc = u if G.nodes.get(u, {}).get("node_type") == "account" else v
             device_accounts[dev].append(acc)
 
+    # Build static pairs for O(1) prior link checks
+    pairs = set(zip(df["payer_id"], df["payee_id"]))
+
     for device, accounts in device_accounts.items():
         accounts = list(set(accounts))
         if len(accounts) < 2:
             continue
 
         # Check for prior payer/payee links between account pairs
-        # If any pair has a prior link, we discount (they may be family)
         no_prior_pairs: list[tuple[str, str]] = []
         all_accounts_set = set(accounts)
 
         for i, a in enumerate(accounts):
             for b in accounts[i+1:]:
-                if not _prior_link(df, a, b):
+                if not ((a, b) in pairs or (b, a) in pairs):
                     no_prior_pairs.append((a, b))
 
         if not no_prior_pairs:
@@ -120,11 +122,11 @@ def _m1_shared_device(df: pd.DataFrame, G: nx.MultiGraph, cfg: dict) -> list[Evi
         satisfied_at = None
         satisfied_tx_ids = []
 
-        for _, row in txs_sorted.iterrows():
-            seen_accounts.add(row["payer_id"])
-            satisfied_tx_ids.append(row["tx_id"])
+        for payer, tx_id, ts in zip(txs_sorted["payer_id"], txs_sorted["tx_id"], txs_sorted["ts"]):
+            seen_accounts.add(payer)
+            satisfied_tx_ids.append(tx_id)
             if len(seen_accounts & no_prior_accounts) >= 2:
-                satisfied_at = str(row["ts"])
+                satisfied_at = str(ts)
                 break
 
         if satisfied_at is None:
@@ -152,12 +154,7 @@ def _m1_shared_device(df: pd.DataFrame, G: nx.MultiGraph, cfg: dict) -> list[Evi
 
 
 def _prior_link(df: pd.DataFrame, a: str, b: str) -> bool:
-    """Check for prior payer/payee relationship between two accounts."""
-    mask = (
-        ((df["payer_id"] == a) & (df["payee_id"] == b))
-        | ((df["payer_id"] == b) & (df["payee_id"] == a))
-    )
-    return bool(mask.any())
+    pass # Obsolete
 
 
 # ---------------------------------------------------------------------------
@@ -296,12 +293,12 @@ def _m3_pass_through(df: pd.DataFrame, cfg: dict) -> list[Evidence]:
     # For each account: list of (ts_ns, tx_id, amount, direction)
     # direction: 'in' (payee), 'out' (payer)
     account_flows: dict[str, list[tuple]] = defaultdict(list)
-    for i, row in df_sorted.iterrows():
-        account_flows[row["payee_id"]].append(
-            (ts_ns[i], row["tx_id"], float(row["amount"]), "in")
+    for ts_val, payee, payer, tx_id, amt in zip(ts_ns, df_sorted["payee_id"], df_sorted["payer_id"], df_sorted["tx_id"], df_sorted["amount"]):
+        account_flows[payee].append(
+            (ts_val, tx_id, float(amt), "in")
         )
-        account_flows[row["payer_id"]].append(
-            (ts_ns[i], row["tx_id"], float(row["amount"]), "out")
+        account_flows[payer].append(
+            (ts_val, tx_id, float(amt), "out")
         )
 
     seen_chains: set[frozenset] = set()
@@ -553,10 +550,10 @@ def _m4_sequence_cohort(
         seen_cohort_accs: set = set()
         satisfied_at = None
 
-        for _, row in txs_sorted.iterrows():
-            seen_cohort_accs.add(row["payer_id"])
+        for payer, ts in zip(txs_sorted["payer_id"], txs_sorted["ts"]):
+            seen_cohort_accs.add(payer)
             if len(seen_cohort_accs) >= min_cohort:
-                satisfied_at = str(row["ts"])
+                satisfied_at = str(ts)
                 break
 
         if satisfied_at is None:

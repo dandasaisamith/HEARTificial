@@ -4,105 +4,104 @@ import time
 from tracefx import schema, engine_api
 from ui import datasets
 
-st.title("Mission Control")
-st.markdown("Select a dataset to ingest and analyze with TRACE-FX.")
+st.title("TRACE-FX")
+st.markdown("### Temporal Risk & Coordinated Evidence Engine")
+st.markdown("Behavioural anomaly detection + coordinated evidence + deterministic precision gate.")
 
-# State initialization
-if "selected_dataset" not in st.session_state:
-    st.session_state.selected_dataset = None
-if "run_result" not in st.session_state:
-    st.session_state.run_result = None
+# Discover Datasets
+registry = datasets.scan_datasets("data")
+if not registry:
+    st.error("No datasets found in data/ or data/Traindata/")
+    st.stop()
 
-# Dataset Discovery
-all_datasets = datasets.discover_datasets()
+ds_names = list(registry.keys())
+selected_name = st.selectbox("Select Dataset", ds_names)
+ds_info = registry[selected_name]
+st.session_state.selected_dataset = ds_info
 
-cols = st.columns([2, 1])
-with cols[0]:
-    ds_names = [d["name"] for d in all_datasets]
-    selected_name = st.selectbox("Select Dataset", ds_names)
-    
-    if selected_name:
-        ds_info = next(d for d in all_datasets if d["name"] == selected_name)
-        st.session_state.selected_dataset = ds_info
-        
-with cols[1]:
-    if st.session_state.selected_dataset:
-        st.markdown(f"**Size**: {st.session_state.selected_dataset['size_mb']:.1f} MB")
-        
-        meta = datasets.load_dataset_metadata(st.session_state.selected_dataset["path"])
-        if meta["status"] == "READY":
-            st.markdown(f"<span class='badge badge-clear'>READY</span>", unsafe_allow_html=True)
-            if meta["has_truth"]:
-                st.markdown("<span class='badge badge-clear'>LABELS AVAILABLE</span>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<span class='badge badge-review'>{meta['status']}</span>", unsafe_allow_html=True)
-            
+st.markdown(f"**Dataset**: {ds_info['path']}")
+meta = datasets.load_dataset_metadata(ds_info["path"])
+
+# Basic stats
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Rows", meta.get("rows", "Unknown"))
+col2.metric("Accounts", meta.get("accounts", "Unknown"))
+col3.metric("Labeled", "Yes" if meta.get("has_truth") else "No")
+col4.metric("Date Range", meta.get("time_range", "Unknown"))
+
+st.markdown(f"**Capabilities Detected**: {', '.join([k for k, v in meta.get('capabilities', {}).items() if v])}")
+
 st.markdown("---")
 
 run_cols = st.columns(2)
-run_btn = run_cols[0].button("Run TRACE-FX Pipeline", type="primary")
-demo_btn = run_cols[1].button("Guided Demo", type="secondary")
+run_btn = run_cols[0].button("RUN TRACE-FX", type="primary")
 
-if demo_btn:
-    st.info("Guided Demo path: Select dataset -> Run -> View Scorecard -> Investigate Rings -> Replay")
+if run_cols[1].button("START JUDGE DEMO", type="secondary"):
+    st.info("Demo Sequence: Mission Control -> Investigate -> Fraud Networks -> Temporal Replay -> Detection Quality -> How TRACE-FX Works -> Data & System")
 
 if run_btn and st.session_state.selected_dataset:
     ds_path = st.session_state.selected_dataset["path"]
     
-    # Check cache
-    cached_res, is_cached = engine_api.get_cached_run(ds_path)
+    st.markdown("### Engine Execution")
     
-    if is_cached:
-        st.info("Loaded cached result in < 1s")
-        st.session_state.run_result = cached_res
-    else:
-        st.info("Live scoring in progress...")
-        
-        # UI Placeholders for Pipeline execution
-        st.markdown("### Live Pipeline Execution")
-        
-        stage_placeholders = {}
-        stages_to_show = ["S1", "S2", "S4", "S5", "S6", "S7", "S8", "S9"]
-        
-        for stage in stages_to_show:
-            stage_placeholders[stage] = st.empty()
-            with stage_placeholders[stage]:
-                st.markdown(f"⏳ **{stage}** - Waiting...")
-                
-        def on_event(ev):
-            stage = ev["stage"]
-            if stage in stage_placeholders:
-                ph = stage_placeholders[stage]
-                if ev["status"] == "running":
-                    ph.markdown(f"🔄 **{stage}: {ev['name']}** - Running...")
-                elif ev["status"] == "done":
-                    t = ev["elapsed"]
-                    met = ev.get("metrics", {})
-                    met_str = " | ".join(f"{k}: {v}" for k, v in met.items())
-                    ph.markdown(f"✅ **{stage}: {ev['name']}** - Done in {t:.2f}s ({met_str})")
-        
-        df = schema.load(ds_path)
-        
-        # We need the truth df for S9
-        meta = datasets.load_dataset_metadata(ds_path)
-        truth_df = None
-        if meta["has_truth"]:
-            truth_df = pd.read_json(meta["truth_path"], lines=True) if meta["truth_path"].endswith(".json") else None
-            
-        res = engine_api.run_pipeline(df, truth_df=truth_df, on_event=on_event)
-        engine_api.save_cached_run(ds_path, res)
-        st.session_state.run_result = res
-        
-        st.success("Run Complete!")
-        
-if st.session_state.run_result:
-    res = st.session_state.run_result
-    st.markdown("### Findings Summary")
+    status_placeholder = st.empty()
+    log_placeholder = st.empty()
     
-    kpi_cols = st.columns(5)
-    kpi_cols[0].metric("Transactions", res.metrics["total_transactions"])
-    kpi_cols[1].metric("Accounts", res.metrics["total_accounts"])
-    kpi_cols[2].metric("FRAUD", res.metrics["fraud_accounts"])
-    kpi_cols[3].metric("REVIEW", res.metrics["review_accounts"])
-    kpi_cols[4].metric("Suspicious Rings", res.metrics["groups"])
+    # S1-S9 mapping
+    stage_texts = {
+        "schema": "S1 INGEST: Parsing timestamps, validating required fields, detecting available entity columns and checking data quality.",
+        "features": "S2 FEATURES: Constructing past-only velocity, amount deviation, novelty, peer deviation and drift features.",
+        "baseline": "S3 NORMAL BEHAVIOUR: Isolation Forest measures behavioural abnormality. This score is evidence only and cannot independently produce FRAUD.",
+        "graph": "S4 GRAPH: Connecting accounts, devices, IPs, payees, merchants and transactions with timestamped relationships while suppressing high-degree shared infrastructure.",
+        "motifs": "S5 MOTIFS: Testing M1 shared infrastructure, M2 common sinks, M3 pass-throughs, M4 sequence cohorts and M5 bursts.",
+        "ledger": "S6 LEDGER: Converting signals into auditable positive and exculpatory evidence.",
+        "gate": "S7 GATE: Requiring sufficient net evidence and independent structural evidence before FRAUD is allowed.",
+        "rollup": "S8 ROLLUP: Aggregating transaction evidence into account risk and evidence-linked groups.",
+        "explain": "S9 EXPLAIN: Generating deterministic explanation, causal alert timestamp and recommended action."
+    }
+    
+    start_time = time.time()
+    
+    def on_progress(stage: str, msg: str, elapsed: float):
+        desc = stage_texts.get(stage, f"Running {stage}...")
+        status_placeholder.markdown(f"**{desc}**\n*(Elapsed: {elapsed:.2f}s)*")
+        
+    with st.spinner("Executing TRACE-FX Pipeline..."):
+        res = engine_api.run_pipeline_with_ui(ds_path, on_progress)
+        
+    total_elapsed = time.time() - start_time
+    st.session_state.run_result = res
+    st.session_state.run_time = total_elapsed
+    
+    status_placeholder.success(f"Pipeline complete in {total_elapsed:.2f}s")
 
+if "run_result" in st.session_state and st.session_state.run_result:
+    res = st.session_state.run_result
+    st.markdown("### Results Summary")
+    
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("TRANSACTIONS", len(res.tx))
+    c2.metric("ACCOUNTS", len(res.accounts))
+    c3.metric("FRAUD", len(res.accounts[res.accounts["label"] == "FRAUD"]))
+    c4.metric("REVIEW", len(res.accounts[res.accounts["label"] == "REVIEW"]))
+    c5.metric("LEGIT", len(res.accounts[res.accounts["label"] == "LEGIT"]))
+    c6.metric("SUSPICIOUS GROUPS", len(res.groups))
+    
+    st.markdown("---")
+    st.markdown("### TOP INVESTIGATION")
+    
+    # Get top risk account
+    if not res.accounts.empty:
+        top_acc = res.accounts.iloc[0]
+        acc_id = top_acc["account_id"]
+        dec = res.decisions[acc_id]
+        
+        tc1, tc2, tc3, tc4 = st.columns(4)
+        tc1.markdown(f"**Account**: `{acc_id}`")
+        tc2.markdown(f"**Risk**: {dec.risk:.2f}")
+        tc3.markdown(f"**Net Evidence**: {dec.net_points}")
+        tc4.markdown(f"**Action**: {dec.action}")
+        
+        if st.button("OPEN INVESTIGATION", type="primary"):
+            st.session_state.investigate_target = acc_id
+            st.switch_page("pages/03_investigate.py")

@@ -3,21 +3,21 @@ import networkx as nx
 import plotly.graph_objects as go
 import pandas as pd
 
-st.title("Fraud Rings")
-st.markdown("Visualized networks of coordinated suspicious activity.")
+st.title("FRAUD NETWORKS")
+st.markdown("Visualized networks of coordinated suspicious activity. Ring topology explains the structural layout of detected motifs.")
 
 if "run_result" not in st.session_state or st.session_state.run_result is None:
-    st.warning("Please run a dataset in Mission Control first.")
+    st.warning("Run TRACE-FX before opening an investigation.")
     st.stop()
 
 res = st.session_state.run_result
 
 if not res.groups:
-    st.info("No suspicious rings found.")
+    st.info("No suspicious networks found.")
     st.stop()
 
 # Group selection
-cols = st.columns([1, 3])
+cols = st.columns([1, 2])
 with cols[0]:
     st.markdown("### Discovered Networks")
     g_ids = [g.group_id for g in res.groups]
@@ -25,21 +25,23 @@ with cols[0]:
     
     group = next(g for g in res.groups if g.group_id == sel_g)
     
-    st.markdown(f"**Ring**: {sel_g}")
-    st.markdown(f"**Size**: {len(group.accounts)} accounts")
-    st.markdown(f"**Shape**: {group.shape}")
+    st.markdown(f"**RING ID**: `{sel_g}`")
+    st.markdown(f"**Accounts**: {len(group.accounts)}")
     st.markdown(f"**Risk**: {group.risk:.2f}")
-    st.markdown("**Evidence**:")
-    for ev in group.evidence_types:
-        st.markdown(f"<span class='badge' style='background:var(--ring); color:white;'>{ev}</span>", unsafe_allow_html=True)
+    st.markdown(f"**Shape**: {group.shape}")
+    
+    ev_chips = " ".join([f"<span class='badge' style='background:var(--ring); color:white;'>{e}</span>" for e in group.evidence_types])
+    st.markdown(f"**Patterns**: {ev_chips}", unsafe_allow_html=True)
+    
+    if st.button("OPEN INVESTIGATION", type="primary"):
+        st.session_state.investigate_target = group.accounts[0]
+        st.switch_page("pages/03_investigate.py")
 
 with cols[1]:
     st.markdown("### Ring Topology")
     
-    # Filter graph to just this ring's neighborhood
     nodes_in_ring = set(group.accounts)
     
-    # Find relevant edges from res.graph
     g_edges = []
     for e in res.graph["edges"]:
         if e["from"] in nodes_in_ring or e["to"] in nodes_in_ring:
@@ -47,7 +49,6 @@ with cols[1]:
             nodes_in_ring.add(e["from"])
             nodes_in_ring.add(e["to"])
             
-    # Build NetworkX graph for layout
     G = nx.Graph()
     for n in res.graph["nodes"]:
         if n["id"] in nodes_in_ring:
@@ -59,7 +60,6 @@ with cols[1]:
     if len(G.nodes) == 0:
         st.warning("No graph data available for this ring.")
     else:
-        # Compute layout once
         pos = nx.spring_layout(G, seed=42)
         
         edge_x = []
@@ -82,34 +82,24 @@ with cols[1]:
         node_text = []
         node_color = []
         node_size = []
-        node_line_width = []
-        node_line_color = []
         
         for node in G.nodes():
             x, y = pos[node]
             node_x.append(x)
             node_y.append(y)
             ndata = G.nodes[node]
-            ntype = ndata.get("type", "unknown")
+            ntype = ndata.get("type", "unknown").upper()
             label = ndata.get("decision", "")
             
-            node_text.append(f"{ntype.upper()}: {node}<br>Decision: {label}")
+            node_text.append(f"{ntype}: {node}<br>{label}")
             
-            # Colors
             if label == "FRAUD": c = '#F43F5E'
             elif label == "REVIEW": c = '#F59E0B'
             elif label == "LEGIT": c = '#10B981'
             else: c = '#22D3EE' # device/wallet
             node_color.append(c)
             
-            node_size.append(25 if ntype == 'account' else 15)
-            
-            if node in group.accounts:
-                node_line_width.append(3)
-                node_line_color.append('#8B5CF6') # Ring violet
-            else:
-                node_line_width.append(1)
-                node_line_color.append('#1F2937')
+            node_size.append(25 if ntype == 'ACCOUNT' else 15)
                 
         node_trace = go.Scatter(
             x=node_x, y=node_y,
@@ -122,7 +112,7 @@ with cols[1]:
                 showscale=False,
                 color=node_color,
                 size=node_size,
-                line=dict(width=node_line_width, color=node_line_color)
+                line=dict(width=2, color='#1F2937')
             )
         )
         
@@ -139,3 +129,7 @@ with cols[1]:
         )
         
         st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+st.markdown("### Structural Explanations")
+st.info("SOURCE ACCOUNTS ↓ SHARED INFRASTRUCTURE ↓ SINK ↓ PASS-THROUGH ↓ DESTINATION")
