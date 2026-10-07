@@ -112,15 +112,39 @@ def load_and_run(csv_path: str):
     return result
 
 def main():
+    st.set_page_config(page_title="TRACE-FX Intelligence", layout="wide")
     st.title("TRACE-FX Intelligence")
     st.markdown("<p style='color: var(--text-muted); font-size: 1.2rem; margin-top: -1rem; margin-bottom: 2rem;'>Precision Fraud Defense Engine</p>", unsafe_allow_html=True)
     
-    with st.spinner("Loading and processing data..."):
-        result = load_and_run("data/demo_small.csv")
-        
-    if not result:
+    # --- Sidebar Configuration ---
+    st.sidebar.header("Configuration")
+    
+    # Dataset Picker
+    available_datasets = []
+    for d in ["data/demo_small.csv", "data/seedA.csv", "data/seedB.csv", "data/seedC.csv", "data/external/ecommerce_40k.csv", "data/external/hybrid_seed.csv"]:
+        if Path(d).exists():
+            available_datasets.append(d)
+            
+    if not available_datasets:
         st.error("No data found. Please run `make data` first.")
         return
+        
+    selected_data = st.sidebar.selectbox("Select Dataset", available_datasets)
+    
+    with st.spinner(f"Loading and processing {selected_data}..."):
+        result = load_and_run(selected_data)
+        
+    if not result:
+        st.error("Failed to process data.")
+        return
+        
+    # Capability Indicators
+    st.sidebar.header("Dataset Capabilities")
+    caps = result.capabilities
+    for feature, is_active in caps.items():
+        color = "var(--success)" if is_active else "var(--text-muted)"
+        status = "Active" if is_active else "Inactive (Missing Column)"
+        st.sidebar.markdown(f"<div style='margin-bottom: 0.5rem;'><span style='color: {color};'>●</span> <b>{feature.replace('_', ' ').title()}</b><br/><span style='font-size: 0.8rem; color: var(--text-muted);'>{status}</span></div>", unsafe_allow_html=True)
         
     # --- Metrics Dashboard ---
     m1, m2, m3, m4 = st.columns(4)
